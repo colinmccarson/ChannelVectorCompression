@@ -71,6 +71,14 @@ class VanillaAutoEncoder(nn.Module):  # TODO unit tests!
         s2 = self.forward_decode(s1)
         return s2
 
+    def __reconstruction_loss(self, x_hat, x):
+        reconstruction_loss = torch.F.binary_cross_entropy(x_hat, x, reduction='sum')
+        return reconstruction_loss
+
+    def loss(self, x):
+        return self.__reconstruction_loss(self.forward(x), x)  # TODO check if needs to be scaled?
+
+
 class VariationalAutoEncoder(VanillaAutoEncoder):
     def __init__(self, datalen, embedding_size, numhidden, numconvs, numfilters, kernel_size, stride=1, pad=True,
                  device='cuda'):
@@ -89,9 +97,21 @@ class VariationalAutoEncoder(VanillaAutoEncoder):
         return z
 
     def forward_encode(self, x):
-        conved = self.__forward_conv(x)
-        mu = super().__forward_linear(conved)
+        logvar = self.__forward_conv(x)
+        mu = super().__forward_linear(logvar)
         for i in range(len(self.varhidden)):
-            conved = self.activations[i](self.varhidden[i](conved))
-        z = self.reparameterize(mu, conved)
-        return z
+            logvar = self.activations[i](self.varhidden[i](logvar))
+        z = self.reparameterize(mu, logvar)
+        return z, mu, logvar
+
+    def forward(self, x):
+        s1, mu, logvar = self.forward_encode(x)
+        s2 = self.forward_encode(s1)
+        return s2, mu, logvar
+
+    def loss(self, x):
+        x_hat, mu, logvar = self.forward(x)
+        reconstruction_loss = self.__reconstruction_loss(x_hat, x)
+        kl_divergence_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        loss = (reconstruction_loss + kl_divergence_loss) / x.size(0)
+        return loss
