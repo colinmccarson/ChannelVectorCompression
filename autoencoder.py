@@ -72,7 +72,7 @@ class VanillaAutoEncoder(nn.Module):  # TODO unit tests!
         return s2
 
     def __reconstruction_loss(self, x_hat, x):
-        reconstruction_loss = torch.F.binary_cross_entropy(x_hat, x, reduction='sum')
+        reconstruction_loss = torch.nn.functional.mse_loss(x_hat, x)
         return reconstruction_loss
 
     def loss(self, x):
